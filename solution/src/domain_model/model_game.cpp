@@ -1,75 +1,77 @@
 #include "model_game.h"
 
-#include <iostream>
-
-using namespace std::literals;
-
 namespace model {
 
-std::shared_ptr<Map> GameSession::GetMap() const {
-    return map_;
+void LootObject::SetItem(const Item& item) {
+    position = item.position;
+    width = item.width;
+}
+void LootObject::SetId(uint64_t id) {
+    id_ = id;
+}
+void LootObject::SetType(uint64_t type) {
+    type_ = type;
+}
+void LootObject::SetValue(uint64_t value) {
+    value_ = value;
+}
+uint64_t LootObject::GetValue() const {
+    return value_;
+}
+uint64_t LootObject::GetType() const {
+    return type_;
+}
+uint64_t LootObject::GetId() const {
+    return id_;
+}
+geom::Point2D LootObject::GetPosition() const {
+    return position;
+}
+double LootObject::GetWidth() const {
+    return width;
+}
+uint64_t LootObject::GetIdCounter() const {
+    return id_counter_;
+}
+void LootObject::SetIdCounter(uint64_t id_counter) {
+    id_counter_ = id_counter;
 }
 
-void GameSession::AddDog(std::shared_ptr<Dog> dog) {
-    dog->GetBag().capacity = map_->GetBagCapacity();
-    dogs_.emplace_back(dog);
+size_t ItemGathererProviderImpl::ItemsCount() const{
+    return items_.size();
 }
 
-const std::vector<std::shared_ptr<Dog>> GameSession::GetDogs(){
-    std::vector<std::shared_ptr<Dog>> result;
-    result.reserve(dogs_.size());
-
-    auto it = dogs_.begin();
-    while (it != dogs_.end()) {
-        if (it->expired()) {
-            it = dogs_.erase(it);
-        } else {
-            result.push_back(it->lock());
-            ++it;
-        }
-    }
-    return result;
+collision_detector::Item ItemGathererProviderImpl::GetItem(size_t idx) const{
+    return *items_.at(idx);
 }
 
-void GameSession::UpdateDogsPosition(double dt) {
-    const auto& map = GetMap();
-    for (auto dog : GetDogs()) {
-        PointDouble curr_pos = dog->GetPosition();
-        Point curr_pos_int = curr_pos.Round();
-
-        std::vector<Road> roads_at_point = map->GetRoadsByPosition(curr_pos_int);
-
-        PointDouble speed = dog->GetSpeed();
-        PointDouble next_pos = curr_pos + PointDouble{speed.x * dt, speed.y * dt};
-
-        PointDouble max_possible_pos = curr_pos;
-
-        bool is_stop = true;
-
-        for(const auto& road : roads_at_point) {
-            if(road.IsOnArea(next_pos)) {
-                is_stop = false;
-                max_possible_pos = next_pos;
-                break;
-            } else {
-                PointDouble tmp_max_possible = road.GetMaxPossiblePosition(next_pos);
-                double dist = curr_pos.Distance(max_possible_pos);
-                double tmp_dist = curr_pos.Distance(tmp_max_possible);
-                if(dist < tmp_dist) {
-                    max_possible_pos = tmp_max_possible;
-                }
-            }
-        }
-        if(!is_stop) {
-            dog->SetGatherer({next_pos.x, next_pos.y});
-            dog->SetPositionEndGatherer();
-        } else {
-            dog->SetGatherer({max_possible_pos.x, max_possible_pos.y});
-            dog->SetPositionEndGatherer();
-            dog->Stop();
-        }
-    }
-    CollectAndSendItems();
+size_t ItemGathererProviderImpl::GatherersCount() const{
+    return gatherers_.size();
 }
 
+collision_detector::Gatherer ItemGathererProviderImpl::GetGatherer(size_t idx) const{
+    return *gatherers_.at(idx);
+}
+
+void ItemGathererProviderImpl::AddItem(const std::shared_ptr<model::LootObject>& item) {
+    items_.push_back(item);
+}
+
+void ItemGathererProviderImpl::AddItem(const model::Office& item) {
+    items_.push_back(std::make_shared<model::Office>(item));
+}
+
+void ItemGathererProviderImpl::AddGatherer(const std::shared_ptr<model::Dog>& gatherer) {
+    gatherers_.push_back(gatherer);
+}
+
+std::shared_ptr<model::Dog> ItemGathererProviderImpl::GetDog(uint64_t idx) const {
+    return std::dynamic_pointer_cast<model::Dog>(gatherers_.at(idx));
+}
+std::shared_ptr<model::Office> ItemGathererProviderImpl::GetOffice(uint64_t idx) const {
+    return std::dynamic_pointer_cast<model::Office>(items_.at(idx));
+}
+std::shared_ptr<model::LootObject> ItemGathererProviderImpl::GetLootObject(uint64_t idx) const {
+    return std::dynamic_pointer_cast<model::LootObject>(items_.at(idx));
+}
 }

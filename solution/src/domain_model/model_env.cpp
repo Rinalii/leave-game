@@ -2,6 +2,8 @@
 
 #include <stdexcept>
 
+#include "constants.h"
+
 namespace model {
 using namespace std::literals;
 
@@ -30,7 +32,6 @@ double PointDouble::Norm() const {
 double PointDouble::Distance(const PointDouble& other) const {
     return std::sqrt((x-other.x)*(x-other.x)+(y-other.y)*(y-other.y));
 }
-
 
 Road::Road(HorizontalTag, Point start, Coord end_x) noexcept
     : start_{start}
@@ -61,7 +62,6 @@ Point Road::GetEnd() const noexcept {
 bool Road::IsOnArea(PointDouble position) const noexcept{
     bool is_hor = false;
     bool is_ver = false;
-    double width = 0.4;
 
     Point start = start_;
     Point end = end_;
@@ -71,22 +71,22 @@ bool Road::IsOnArea(PointDouble position) const noexcept{
             start = end_;
             end = start_;
         }
-        is_hor = (static_cast<double>(start.x)  - width <= position.x) && (position.x <= static_cast<double>(end.x) + width);
-        is_ver = (static_cast<double>(start.y) - width <= position.y) && (position.y <= static_cast<double>(end.y) + width);
+        is_hor = (static_cast<double>(start.x)  - ROAD_WIDTH <= position.x) && (position.x <= static_cast<double>(end.x) + ROAD_WIDTH);
+        is_ver = (static_cast<double>(start.y) - ROAD_WIDTH <= position.y) && (position.y <= static_cast<double>(end.y) + ROAD_WIDTH);
     } else {
         if(start_.y > end.y) {
             start = end_;
             end = start_;
         }
-        is_ver = (static_cast<double>(start.y) - width <= position.y) && (position.y <= static_cast<double>(end.y) + width);
-        is_hor = (static_cast<double>(start.x) - width <= position.x) && (position.x <= static_cast<double>(end.x) + width);
+        is_ver = (static_cast<double>(start.y) - ROAD_WIDTH <= position.y) && (position.y <= static_cast<double>(end.y) + ROAD_WIDTH);
+        is_hor = (static_cast<double>(start.x) - ROAD_WIDTH <= position.x) && (position.x <= static_cast<double>(end.x) + ROAD_WIDTH);
     }
     return is_hor && is_ver;
 }
 
 PointDouble Road::GetMaxPossiblePosition(PointDouble position) const noexcept {
     PointDouble max_possible = position;
-    double width = 0.4;
+
     Point start = start_;
     Point end = end_;
     if(IsHorizontal()) {
@@ -94,33 +94,59 @@ PointDouble Road::GetMaxPossiblePosition(PointDouble position) const noexcept {
             start = end_;
             end = start_;
         }
-        if(position.x < start.x - width) {
-            max_possible.x = start.x - width;
-        } else if(position.x > end.x+ width) {
-            max_possible.x = end.x+ width;
+        if(position.x < start.x - ROAD_WIDTH) {
+            max_possible.x = start.x - ROAD_WIDTH;
+        } else if(position.x > end.x+ ROAD_WIDTH) {
+            max_possible.x = end.x+ ROAD_WIDTH;
         }
-        if(position.y < start.y - width) {
-            max_possible.y = start.y - width;
-        } else if(position.y > start.y + width) {
-            max_possible.y = start.y + width;
+        if(position.y < start.y - ROAD_WIDTH) {
+            max_possible.y = start.y - ROAD_WIDTH;
+        } else if(position.y > start.y + ROAD_WIDTH) {
+            max_possible.y = start.y + ROAD_WIDTH;
         }
     } else {
         if(start_.y > end_.y) {
             start = end_;
             end = start_;
         }
-        if(position.x < start.x - width) {
-            max_possible.x = start.x - width;
-        } else if(position.x > start.x + width) {
-            max_possible.x = start.x + width;
+        if(position.x < start.x - ROAD_WIDTH) {
+            max_possible.x = start.x - ROAD_WIDTH;
+        } else if(position.x > start.x + ROAD_WIDTH) {
+            max_possible.x = start.x + ROAD_WIDTH;
         }
-        if(position.y < start.y - width) {
-            max_possible.y = start.y - width;
-        } else if(position.y > end.y+ width) {
-            max_possible.y = end.y+ width;
+        if(position.y < start.y - ROAD_WIDTH) {
+            max_possible.y = start.y - ROAD_WIDTH;
+        } else if(position.y > end.y+ ROAD_WIDTH) {
+            max_possible.y = end.y+ ROAD_WIDTH;
         }
     }
     return max_possible;
+}
+
+std::pair<PointDouble, PointDouble> Road::GetArea() const noexcept {
+    PointDouble min;
+    PointDouble max;
+    if(start_.x < end_.x) {
+        min.x = start_.x - ROAD_WIDTH;
+        max.x = end_.x + ROAD_WIDTH;
+    } else {
+        max.x = start_.x + ROAD_WIDTH;
+        min.x = end_.x - ROAD_WIDTH;
+    }
+    if(start_.y < end_.y) {
+        min.y = start_.y - ROAD_WIDTH;
+        max.y = end_.y + ROAD_WIDTH;
+    } else {
+        max.y = start_.y + ROAD_WIDTH;
+        min.y = end_.y - ROAD_WIDTH;
+    }
+    return {min, max};
+}
+PointDouble Road::GetRandomPosition() const noexcept {
+    std::pair<PointDouble, PointDouble> area = GetArea();
+    double x = GenerateRandomNumber(area.first.x, area.second.x);
+    double y = GenerateRandomNumber(area.first.y, area.second.y);
+    return PointDouble{x, y};
 }
 
 void RoadIndexes::AddRoadIndexes(const std::vector<Road>& roads) {
@@ -168,7 +194,7 @@ PointDouble Map::GetRandPosition() const {
         throw std::runtime_error("No roads on the map");
     }
 
-    int rand_number_of_road = GenerateRandomNumber(0, roads_.size()-1);
+    uint64_t rand_number_of_road = GenerateRandomNumber(0, roads_.size()-1);
 
     const Road& road = roads_[rand_number_of_road];
     Point road_start = road.GetStart();
@@ -196,7 +222,9 @@ void Map::SetDogSpeed(double dog_speed) {
     dog_speed_ = dog_speed;
 }
 
-double Map::GetDogSpeed() const {return dog_speed_;}
+double Map::GetDogSpeed() const {
+    return dog_speed_;
+}
 
 void Map::AddRoadIndexes() {
     coords_to_road_idx_.AddRoadIndexes(roads_);
@@ -215,47 +243,43 @@ std::vector<Road> Map::GetRoadsByPosition(Point position) const {
     return res;
 }
 
-void Dog::SetDirection(const std::string& direction_str) {
-    if(direction_str == "U"){
-        direction_ = Direction::NORTH;
-        SetSpeed({0., -speed_value_});
-    } else if(direction_str == "D"){
-        direction_ = Direction::SOUTH;
-        SetSpeed({0., speed_value_});
-    } else if(direction_str == "R"){
-        direction_ = Direction::WEST;
-        SetSpeed({speed_value_, 0.});
-    } else if(direction_str == "L"){
-        direction_ = Direction::EAST;
-        SetSpeed({-speed_value_, 0.});
-    } else if(direction_str == ""){
-        SetSpeed({0., 0.});
-    } else {
-        throw;
+PointDouble Map::GetRandomPosition() const {
+    if (roads_.empty()) {
+        throw std::runtime_error("No roads on the map");
     }
+
+    uint64_t rand_number_of_road = GenerateRandomNumber(0, roads_.size()-1);
+
+    const Road& road = roads_[rand_number_of_road];
+    return road.GetRandomPosition();
 }
 
-std::string Dog::GetDirection() const {
-    switch(direction_){
-        case Direction::NORTH: return "U";
-        case Direction::SOUTH: return "D";
-        case Direction::WEST: return "R";
-        case Direction::EAST: return "L";
-    }
-    return "U";
+void Map::SetLootTypesJson(const boost::json::array& loot_types) {
+    loot_types_json_ = loot_types;
 }
-void Dog::SetSpeedValue(double speed_value) {speed_value_ = speed_value;}
-void Dog::ApplyMapSettings(std::shared_ptr<model::Map> map, bool is_rand_spawn) {
-    if(is_rand_spawn) {
-        SetPosition(map->GetRandPosition());
-    } else {
-        SetPosition(map->GetStartPosition());
-    }
-    SetSpeedValue(map->GetDogSpeed());
-    Stop();
+
+void Map::SetLootTypes(const std::vector<LootType>& loot_types) {
+    loot_types_ = loot_types;
 }
-void Dog::Stop() {
-    SetSpeed({0, 0});
+
+uint64_t Map::GetNumberOfLootTypes() const {
+    return loot_types_.size();
+}
+
+const boost::json::array& Map::GetLootTypesJson() {
+    return loot_types_json_;
+}
+const std::vector<LootType>& Map::GetLootTypes() const {
+    return loot_types_;
+}
+
+uint64_t Map::GetRandomTypeOfLoot() const {
+    return GenerateRandomNumber(0, GetNumberOfLootTypes()-1);
+}
+
+std::pair<uint64_t, uint64_t> Map::GetRandomTypeAndValueOfLoot() const {
+    uint64_t type = GenerateRandomNumber(0, GetNumberOfLootTypes()-1);
+    return {type, loot_types_[type].value};
 }
 
 }  // namespace model

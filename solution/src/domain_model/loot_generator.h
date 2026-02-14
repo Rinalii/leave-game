@@ -33,7 +33,7 @@ public:
      * loot_count - количество трофеев на карте до вызова Generate
      * looter_count - количество мародёров на карте
      */
-    unsigned Generate(TimeInterval time_delta, unsigned loot_count, unsigned looter_count);
+    uint64_t Generate(TimeInterval time_delta, uint64_t loot_count, uint64_t looter_count);
 
 private:
     static double DefaultGenerator() noexcept {
