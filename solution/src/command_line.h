@@ -3,6 +3,7 @@
 #include <iostream>
 #include <optional>
 #include <vector>
+#include <cstdint>
 
 using namespace std::literals;
 
@@ -10,8 +11,8 @@ struct Args {
     std::string config_file_path;
     std::string root_path;
     std::string state_file_path;
-    unsigned int save_state_period = 0;
-    unsigned int tick_period = 0;
+    uint64_t save_state_period = 0;
+    uint64_t tick_period = 0;
     bool random_spawn = false;
 };
 
@@ -24,12 +25,12 @@ struct Args {
     desc.add_options()
         // Добавляем опцию --help и её короткую версию -h
         ("help,h", "Show help")
-        ("tick-period,t",   po::value<unsigned int>(&args.tick_period)->value_name("milliseconds"s), "Set tick period")
+        ("tick-period,t",   po::value<uint64_t>(&args.tick_period)->value_name("milliseconds"s), "Set tick period")
         ("config-file,c",   po::value(&args.config_file_path)->value_name("file"s), "Set config file path")
         ("www-root,w",      po::value(&args.root_path)->value_name("dir"s), "Set root dir")
         ("randomize-spawn-points", po::value<bool>(&args.random_spawn), "Set random dog spawn")
         ("state-file,st",   po::value(&args.state_file_path)->value_name("state_file"s), "Set state file path")
-        ("save-state-period,sv",   po::value<unsigned int>(&args.save_state_period)->value_name("milliseconds"s), "Set save state period");
+        ("save-state-period,sv",   po::value<uint64_t>(&args.save_state_period)->value_name("milliseconds"s), "Set save state period");
 
     // variables_map хранит значения опций после разбора
     po::variables_map vm;

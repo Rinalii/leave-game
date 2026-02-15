@@ -4,6 +4,7 @@
 #include <fstream>
 
 #include <iostream>
+#include <cstdint>
 
 using namespace std::literals;
 
@@ -28,15 +29,15 @@ std::string LoadJsonFileAsString(const std::filesystem::path& json_path) {
 void AddRoadsToMap(const boost::json::value& json_roads, model::Map& map) {
     for (auto& json_road : json_roads.as_array()) {
         const boost::json::object& json_road_obj = json_road.as_object();
-        int x0 = static_cast<int>(json_road_obj.at(model_constants::X0).as_int64());
-        int y0 = static_cast<int>(json_road_obj.at(model_constants::Y0).as_int64());
+        int64_t x0 = static_cast<int64_t>(json_road_obj.at(model_constants::X0).as_int64());
+        int64_t y0 = static_cast<int64_t>(json_road_obj.at(model_constants::Y0).as_int64());
 
         if (json_road_obj.contains(model_constants::X1)) {
-            int x1 = static_cast<int>(json_road_obj.at(model_constants::X1).as_int64());
+            int64_t x1 = static_cast<int64_t>(json_road_obj.at(model_constants::X1).as_int64());
             model::Road road{model::Road::HORIZONTAL, {x0, y0}, x1};
             map.AddRoad(road);
         } else {
-            int y1 = static_cast<int>(json_road_obj.at(model_constants::Y1).as_int64());
+            int64_t y1 = static_cast<int64_t>(json_road_obj.at(model_constants::Y1).as_int64());
             model::Road road{model::Road::VERTICAL, {x0, y0}, y1};
             map.AddRoad(road);
         }
@@ -47,10 +48,10 @@ void AddBuildingsToMap(const boost::json::value& json_buildings, model::Map& map
     for (auto& json_building : json_buildings.as_array()) {
         const boost::json::object& json_building_obj = json_building.as_object();
 
-        int x = static_cast<int>(json_building_obj.at(model_constants::X).as_int64());
-        int y = static_cast<int>(json_building_obj.at(model_constants::Y).as_int64());
-        int w = static_cast<int>(json_building_obj.at(model_constants::W).as_int64());
-        int h = static_cast<int>(json_building_obj.at(model_constants::H).as_int64());
+        int64_t x = static_cast<int64_t>(json_building_obj.at(model_constants::X).as_int64());
+        int64_t y = static_cast<int64_t>(json_building_obj.at(model_constants::Y).as_int64());
+        int64_t w = static_cast<int64_t>(json_building_obj.at(model_constants::W).as_int64());
+        int64_t h = static_cast<int64_t>(json_building_obj.at(model_constants::H).as_int64());
         model::Rectangle rect{{x, y}, {w, h}};
         model::Building building{rect};
         map.AddBuilding(building);
@@ -61,17 +62,17 @@ void AddOfficesToMap(const boost::json::value& json_offices, model::Map& map) {
     for (auto& json_office : json_offices.as_array()) {
         const boost::json::object& json_office_obj = json_office.as_object();
         model::Office::Id id{json_office_obj.at("id").as_string().c_str()};
-        int x = static_cast<int>(json_office_obj.at(model_constants::X).as_int64());
-        int y = static_cast<int>(json_office_obj.at(model_constants::Y).as_int64());
-        int dx = static_cast<int>(json_office_obj.at(model_constants::OFFSET_X).as_int64());
-        int dy = static_cast<int>(json_office_obj.at(model_constants::OFFSET_Y).as_int64());
+        int64_t x = static_cast<int64_t>(json_office_obj.at(model_constants::X).as_int64());
+        int64_t y = static_cast<int64_t>(json_office_obj.at(model_constants::Y).as_int64());
+        int64_t dx = static_cast<int64_t>(json_office_obj.at(model_constants::OFFSET_X).as_int64());
+        int64_t dy = static_cast<int64_t>(json_office_obj.at(model_constants::OFFSET_Y).as_int64());
        
         model::Office office{id, {x, y}, {dx, dy}};
         map.AddOffice(office);
     }
 }
 
-void AddMapsToGame (const boost::json::value& json_maps, model::Game& game, double default_dog_speed, int default_bag_capacity = 3) {
+void AddMapsToGame (const boost::json::value& json_maps, model::Game& game, double default_dog_speed, int64_t default_bag_capacity = 3) {
 
     for (auto& json_map : json_maps.as_array()) {
         const boost::json::object& json_map_obj = json_map.as_object();
@@ -125,7 +126,7 @@ void AddLootTypesAtMap(const boost::json::object& json_map_obj, model::Map& map)
             if (json_loot_type_obj.contains("scale")) {
                 loot_type.scale = json_loot_type_obj.at("scale").as_double();
             } 
-            int value = 0;
+            int64_t value = 0;
             if (json_loot_type_obj.contains("value")) {
                 loot_type.value = json_loot_type_obj.at("value").as_int64();
             } 
@@ -164,7 +165,7 @@ model::Game LoadGame(const std::filesystem::path& json_path) {
         default_dog_speed = parsed_json.as_object().at("defaultDogSpeed").as_double();
     }
 
-    int default_bag_capacity = 3;
+    int64_t default_bag_capacity = 3;
     if (parsed_json.as_object().contains("defaultBagCapacity")) {
         default_bag_capacity = parsed_json.as_object().at("defaultBagCapacity").as_int64();
     }

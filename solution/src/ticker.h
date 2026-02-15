@@ -6,6 +6,7 @@
 #include <boost/beast.hpp>
 
 #include <chrono>
+#include <stdexcept>
 
 namespace net = boost::asio;
 namespace sys = boost::system;
@@ -31,7 +32,9 @@ public:
 
 private:
     void ScheduleTick() {
-        assert(strand_.running_in_this_thread());
+        if(!strand_.running_in_this_thread()) {
+            throw std::logic_error("ScheduleTick: strand_.running_in_this_thread()");
+        }
         timer_.expires_after(period_);
         timer_.async_wait([self = shared_from_this()](sys::error_code ec) {
             self->OnTick(ec);
@@ -40,7 +43,9 @@ private:
 
     void OnTick(sys::error_code ec) {
         using namespace std::chrono;
-        assert(strand_.running_in_this_thread());
+        if(!strand_.running_in_this_thread()) {
+            throw std::logic_error("OnTick: strand_.running_in_this_thread()");
+        }
 
         if (!ec) {
             auto this_tick = Clock::now();

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <boost/log/trivial.hpp>     // для BOOST_LOG_TRIVIAL
 #include <boost/log/core.hpp>        // для logging::core
 #include <boost/log/expressions.hpp> // для выражения, задающего фильтр
@@ -38,7 +40,7 @@ public:
         );
     }
 
-    static void LogServerStart(int port, std::string address) {
+    static void LogServerStart(int64_t port, std::string address) {
         boost::json::object add_data;
         add_data["port"] = port;
         add_data["address"] = address;
