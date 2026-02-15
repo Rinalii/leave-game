@@ -170,6 +170,11 @@ model::Game LoadGame(const std::filesystem::path& json_path) {
         default_bag_capacity = parsed_json.as_object().at("defaultBagCapacity").as_int64();
     }
 
+    if (parsed_json.as_object().contains("dogRetirementTime")) {
+        double dog_retirement_time = parsed_json.as_object().at("dogRetirementTime").as_double();
+        game.SetDogRetirementTime(dog_retirement_time);
+    }
+
     AddMapsToGame(parsed_json.as_object().at("maps").as_array(), game, default_dog_speed, default_bag_capacity);
     return game;
 }
