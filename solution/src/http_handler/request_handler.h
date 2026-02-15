@@ -65,10 +65,7 @@ public:
                 auto handle = [self = shared_from_this(), send,
                                req = std::forward<decltype(req)>(req), version, keep_alive, req_target] {
                     try {
-                        // Этот assert не выстрелит, так как лямбда-функция будет выполняться внутри strand
-                        assert(self->api_strand_.running_in_this_thread());
                         return send(self->HandleApiRequest(req, req_target));
-                        //return send(self->api_handler_->HandleRequest(req, req_target));
                     } catch (const std::exception& ex) {
                         send(self->ReportServerError(version, keep_alive, ex.what()));
                     } catch (...) {
@@ -178,7 +175,7 @@ private:
         BOOST_LOG_TRIVIAL(info) << boost::log::add_value(additional_data, obj) << "request received"sv;
     }
 
-    static void LogResponse(int delta, int code, std::string content, std::string uri) {
+    static void LogResponse(uint64_t delta, uint64_t code, std::string content, std::string uri) {
         if(content.empty()){
             content = "null";
         }
