@@ -15,6 +15,8 @@
 #include "../application_model/model_app.h"
 #include "../application_model/game_server.h"
 
+#include "../database/postgres.h"
+
 namespace json = boost::json;
 namespace beast = boost::beast;
 namespace http = beast::http;
@@ -29,6 +31,7 @@ enum class ApiObject {
     STATE,
     ACTION,
     TICK,
+    RECORDS,
     UNKNOWN
 };
 
@@ -60,6 +63,7 @@ namespace pattern_urls {
     inline constexpr static std::string_view GAME_STATE = "/api/v1/game/state"sv;
     inline constexpr static std::string_view GAME_PLAYER_ACTION = "/api/v1/game/player/action"sv;
     inline constexpr static std::string_view GAME_TICK = "/api/v1/game/tick"sv;
+    inline constexpr static std::string_view GAME_RECORDS = "/api/v1/game/records"sv;
 }
 
 namespace errors_handler {
@@ -82,6 +86,16 @@ namespace errors_handler {
 
     inline constexpr static std::string_view MAP_ID_EMPTY = R"({"code": "invalidArgument", "message": "Invalid map id"})"sv;
     inline constexpr static std::string_view BAD_REQ_TICK = R"({"code": "badRequest", "message": "Invalid endpoint"})"sv;
+}
+
+namespace request_params {
+    inline const std::string JOIN_USERNAME = "userName";
+    inline const std::string JOIN_MAPID = "mapId";
+
+    inline const std::string TICK_TIMEDELTA = "timeDelta";
+
+    inline const std::string RECORDS_START = "start";
+    inline const std::string RECORDS_MAXITEMS = "maxItems";
 }
 
 using StringResponse = http::response<http::string_body>;
@@ -124,6 +138,8 @@ public:
                     return HandleTickRequest(req);
                 }
                 return MakeStringResponse(http::status::bad_request, errors_handler::BAD_REQ_TICK, req.version(), req.keep_alive(), content_type::JSON);
+            case ApiObject::RECORDS:
+                return HandleGameRecordsRequest(req);
             default:
                 break;
         }
@@ -143,6 +159,7 @@ private:
     std::string GetJoinResponseBody(std::shared_ptr<model::Map> map, const std::string& user_name) const;
     std::string GetPlayerListResponseBody(std::shared_ptr<const model::Player> player) const;
     std::string GetGameStateResponseBody(std::shared_ptr<const model::Player> player) const;
+    std::string GetGameRecordsResponseBody(const std::vector<domain::RetiredPlayer>& retired_players) const;
     void DoPlayerAction(std::shared_ptr<const model::Player> player, const std::string& direction) const;
 
     template <typename Body, typename Allocator>
@@ -182,6 +199,7 @@ private:
         const auto text_response = [this, &req](http::status status, std::string_view text, std::string_view allow = ""sv, std::string_view content_type = content_type::JSON) {
             return MakeStringResponse(status, text, req.version(), req.keep_alive(), content_type, "no-cache"sv, allow);
         };
+
         if (req.method() != http::verb::post) {
             return text_response(http::status::method_not_allowed, errors_handler::INVALID_POST, "POST"sv);
         }
@@ -190,19 +208,19 @@ private:
         std::string map_id;
         try {
             auto parsed_req_obj = boost::json::parse(req.body()).as_object();
-            if (!parsed_req_obj.contains("userName")) {
+            if (!parsed_req_obj.contains(request_params::JOIN_USERNAME)) {
                 return text_response(http::status::bad_request, errors_handler::USERNAME_EMPTY);
             }
 
-            user_name = parsed_req_obj.at("userName").as_string();
+            user_name = parsed_req_obj.at(request_params::JOIN_USERNAME).as_string();
             if (user_name.empty()) {
                 return text_response(http::status::bad_request, errors_handler::USERNAME_EMPTY);
             }
-            if (!parsed_req_obj.contains("mapId")) {
+            if (!parsed_req_obj.contains(request_params::JOIN_MAPID)) {
                 return text_response(http::status::bad_request, errors_handler::MAP_ID_EMPTY);
             }
 
-            map_id = parsed_req_obj.at("mapId").as_string();
+            map_id = parsed_req_obj.at(request_params::JOIN_MAPID).as_string();
             if (map_id.empty()) {
                 return text_response(http::status::bad_request, errors_handler::MAP_ID_EMPTY);
             }
@@ -276,6 +294,7 @@ private:
         const auto text_response = [this, &req](http::status status, std::string_view text, std::string_view allow = ""sv) {
             return MakeStringResponse(status, text, req.version(), req.keep_alive(), content_type::JSON, "no-cache"sv, allow);
         };
+
         if (req.method() != http::verb::get && req.method() != http::verb::head) {
             return text_response(http::status::method_not_allowed, errors_handler::INVALID_METHOD, "GET, HEAD"sv);         
         } 
@@ -291,6 +310,7 @@ private:
         const auto text_response = [this, &req](http::status status, std::string_view text, std::string_view allow = ""sv) {
             return MakeStringResponse(status, text, req.version(), req.keep_alive(), content_type::JSON, "no-cache"sv, allow);
         };
+
         if (req.method() != http::verb::get && req.method() != http::verb::head) {
             return text_response(http::status::method_not_allowed, errors_handler::INVALID_METHOD, "GET, HEAD"sv);     
         } 
@@ -332,15 +352,76 @@ private:
 
         try {
             auto parsed_req_obj = json::parse(req.body()).as_object();
-            if (!parsed_req_obj.contains("timeDelta")) {
+            if (!parsed_req_obj.contains(request_params::TICK_TIMEDELTA)) {
                 return text_response(http::status::bad_request, errors_handler::BAD_REQ);
             }
 
-            int dt = parsed_req_obj.at("timeDelta").as_int64();
-            game_server_.Tick(dt);
+            uint64_t dt = parsed_req_obj.at(request_params::TICK_TIMEDELTA).as_int64();
+            std::chrono::milliseconds time{dt};
+            game_server_.Tick(time);
             return text_response(http::status::ok, "{}");
         } catch (const std::exception& ex) {
             return text_response(http::status::bad_request, errors_handler::TICK_PARSING_ERROR);
+        }
+    }
+
+    template<typename T>
+    std::optional<T> GetValueFromUrl(std::string_view query_string, std::string_view key) {
+        size_t key_pos = query_string.find(key);
+        if (key_pos == std::string_view::npos) {
+            return std::nullopt;
+        }
+        
+        size_t value_start = key_pos + key.length() + 1;
+        if (value_start >= query_string.length()) {
+            return std::nullopt;
+        }
+        
+        size_t value_end = query_string.find('&', value_start);
+        if (value_end == std::string_view::npos) {
+            value_end = query_string.length();
+        }
+        
+        std::string_view value = query_string.substr(value_start, value_end - value_start);
+        
+        std::stringstream ss;
+        ss.write(value.data(), value.size());
+        T res;
+        ss >> res;
+        return res;
+    }
+
+    template <typename Body, typename Allocator>
+    http::response<http::string_body> HandleGameRecordsRequest(const http::request<Body, http::basic_fields<Allocator>>& req) {
+        const auto text_response = [this, &req](http::status status, std::string_view text, std::string_view allow = ""sv) {
+            return MakeStringResponse(status, text, req.version(), req.keep_alive(), content_type::JSON, "no-cache"sv, allow);
+        };
+        if (req.method() != http::verb::get) {
+            return text_response(http::status::method_not_allowed, errors_handler::INVALID_GET, "GET"sv);     
+        }  
+
+        try {
+            std::string url{req.target()};
+
+            std::optional<size_t> offset = GetValueFromUrl<size_t>(url, request_params::RECORDS_START);
+            if(!offset) {
+                offset = postgres::DEFAULT_OFFSET;
+            }
+
+            std::optional<size_t> limit = GetValueFromUrl<size_t>(url, request_params::RECORDS_MAXITEMS);
+            if(!limit) {
+                limit = postgres::DEFAULT_LIMIT;
+            }
+
+            std::optional<std::vector<domain::RetiredPlayer>> retired_players = game_server_.GetRetiredPlayersTable(offset, limit);
+            if(!retired_players){
+                return text_response(http::status::bad_request, errors_handler::BAD_REQ);
+            }
+
+            std::string responce_body = GetGameRecordsResponseBody(*retired_players);
+            return text_response(http::status::ok, responce_body);
+        } catch (const std::exception& ex) {
+            return text_response(http::status::bad_request, errors_handler::BAD_REQ);
         }
     }
 };

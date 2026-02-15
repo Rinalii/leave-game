@@ -1,4 +1,7 @@
 #include "api_handler.h"
+
+#include "../domain_model/constants.h"
+
 namespace http_handler {
 
 using StringResponse = http::response<http::string_body>;
@@ -52,6 +55,8 @@ ApiObject DetermineApiObject(const std::string& target_str) {
         return check_size_and_slash(pattern_urls::GAME_PLAYER_ACTION.size(), ApiObject::ACTION);
     } else if (target_str.starts_with(pattern_urls::GAME_TICK)) {
         return check_size_and_slash(pattern_urls::GAME_TICK.size(), ApiObject::TICK);
+    } else if (target_str.starts_with(pattern_urls::GAME_RECORDS)) {
+        return ApiObject::RECORDS;
     }
     return ApiObject::UNKNOWN;
 }
@@ -227,9 +232,23 @@ std::string ApiRequestHandler::GetGameStateResponseBody(std::shared_ptr<const mo
     return boost::json::serialize(responce_body_obj);
 }
 
+std::string ApiRequestHandler::GetGameRecordsResponseBody(const std::vector<domain::RetiredPlayer>& retired_players) const {
+    boost::json::array responce_body_arr;
+
+    for(const auto& retired_player : retired_players) {
+        boost::json::object retired_player_obj;
+        retired_player_obj["name"] = retired_player.GetName();
+        retired_player_obj["score"] = retired_player.GetScore();
+        retired_player_obj["playTime"] = static_cast<double>(retired_player.GetPlayTimeMs())/MILLISEC_PER_SEC;
+        responce_body_arr.push_back(retired_player_obj);
+    }
+
+    return boost::json::serialize(responce_body_arr);
+}
+
 void ApiRequestHandler::DoPlayerAction(std::shared_ptr<const model::Player> player, const std::string& direction) const {
     try {
-        player->GetDog()->SetDirection(direction);
+        player->GetDog()->PrepareToMove(direction);
     } catch (const std::exception& ex) {
         throw;
     }
