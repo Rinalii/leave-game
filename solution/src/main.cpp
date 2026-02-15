@@ -65,7 +65,13 @@ int main(int argc, const char* argv[]) {
         uint64_t save_state_period = command_line_args.save_state_period;
         bool random_spawn = command_line_args.random_spawn;
 
-        GameServer game_server(config);
+
+        const char* db_url = std::getenv("GAME_DB_URL");
+        if (!db_url) {
+            return EXIT_FAILURE;
+        }
+
+        GameServer game_server(config, num_threads, db_url);
 
         if (tick_period) {
             std::chrono::milliseconds tick_period_millisec(tick_period);
