@@ -1,22 +1,22 @@
 #pragma once
-#include "../json_loader.h"
-#include "../domain_model/model_game.h"
-#include <boost/asio/io_context.hpp>
-#include <utility>
-#include "model_app.h"
+
 #include <boost/signals2.hpp>
 #include <chrono>
-#include <iostream>
-#include "player_tokens.h"
-#include "game.h"
+#include <utility>
 
+#include "../json_loader.h"
 #include "../serialization/model_serialization.h"
+
+#include "../database/postgres.h"
+#include "../database/use_cases_impl.h"
+
+#include "player_tokens.h"
+#include "model_app.h"
+#include "../domain_model/model_game.h"
+#include "game.h"
 
 namespace sig = boost::signals2;
 using milliseconds = std::chrono::milliseconds;
-
-
-namespace net = boost::asio;
 namespace fs = std::filesystem;
 
 using namespace std::literals;
@@ -31,29 +31,18 @@ class GameServer {
 public:
     using TickSignal = sig::signal<void(milliseconds delta)>;
 
-    GameServer(fs::path config) :
-        game_{json_loader::LoadGame(config)} {
+    GameServer(fs::path config, size_t number_of_connection, std::string database_url = postgres::DB_URL) :
+        game_{json_loader::LoadGame(config)}, database_(number_of_connection, database_url) {
     }
 
-    std::pair<std::shared_ptr<model::Player>, model::Token> JoinGame(std::shared_ptr<model::Map> map, const std::string& player_name) {
-        return game_.JoinGame(map, player_name, is_rand_spawn_);
-    }
+    std::pair<std::shared_ptr<model::Player>, model::Token> JoinGame(std::shared_ptr<model::Map> map, const std::string& player_name);
 
     std::shared_ptr<const model::Player> FindPlayer(const model::Token& token) const;
-    std::shared_ptr<const model::Player> FindPlayer(int id) const {
-        return game_.FindPlayer(id);
-    }
-
-    const std::unordered_map<model::Token, std::shared_ptr<model::Player>, model::TokenHasher> GetTokenToPlayerMap(std::shared_ptr<model::GameSession> session) const noexcept {
-        return game_.GetTokenToPlayerMap(session);
-    }
+    std::shared_ptr<const model::Player> FindPlayer(int64_t id) const;
+    const std::unordered_map<model::Token, std::shared_ptr<model::Player>, model::TokenHasher> GetTokenToPlayerMap(std::shared_ptr<model::GameSession> session) const noexcept;
 
     std::shared_ptr<model::Map> FindMap(const model::Map::Id& id) const noexcept;
-
     const std::vector<model::Map>& GetMaps() const noexcept;
-
-    void Tick2(int tick);
-    void Tick2(std::chrono::milliseconds delta);
 
     void SetRandSpawn();
     void SetAutoTick();
@@ -62,41 +51,16 @@ public:
 
     // Добавляем обработчик сигнала tick и возвращаем объект connection для управления,
     // при помощи которого можно отписаться от сигнала
-    [[nodiscard]] sig::connection DoOnTick(const TickSignal::slot_type& handler) {
-        return tick_signal_.connect(handler);
-    }
+    [[nodiscard]] sig::connection DoOnTick(const TickSignal::slot_type& handler);
+    void Tick(milliseconds delta);
 
-    void Tick(milliseconds delta) {
-        // Уведомляем подписчиков сигнала tick
-        int millisec_per_sec = 1000;
-        game_.GenerateLoot(delta.count());
-        game_.UpdateGame(static_cast<double>(delta.count())/millisec_per_sec);
-        tick_signal_(delta);
-    }
+    void SetStateFile(std::string state_file);
+    void SetSaveStatePeriod(uint64_t save_state_period);
 
-    void Tick(int tick) {
-        int millisec_per_sec = 1000;
-        game_.GenerateLoot(tick);
-        game_.UpdateGame(static_cast<double>(tick)/millisec_per_sec);
-        milliseconds delta(tick);
-        tick_signal_(delta);
-    }
+    void Restore();
+    void Save();
 
-    void SetStateFile(std::string state_file) {
-        state_file_ = state_file;
-    }
-
-    void SetSaveStatePeriod(unsigned int save_state_period) {
-        save_state_period_ = save_state_period;
-    }
-
-    void Restore() {
-        model::Restore(game_, state_file_);
-    }
-
-    void Save() {
-        model::Save(game_, state_file_);
-    }
+    std::optional<std::vector<domain::RetiredPlayer>> GetRetiredPlayersTable(std::optional<size_t> offset, std::optional<size_t> limit);
 
 private:
     model::Game game_;
@@ -105,6 +69,10 @@ private:
     bool is_auto_tick_ = false;
 
     TickSignal tick_signal_;
+
     std::string state_file_;
-    unsigned int save_state_period_ = 0;
+    uint64_t save_state_period_ = 0;
+
+    postgres::Database database_;
+    database::UseCasesImpl use_cases_impl_{database_.GetRetiredPlayerImpl()};
 };
