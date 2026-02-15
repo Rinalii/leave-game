@@ -61,8 +61,8 @@ int main(int argc, const char* argv[]) {
         std::filesystem::path root = std::filesystem::weakly_canonical(std::filesystem::path((command_line_args.root_path)));
         std::filesystem::path state = std::filesystem::weakly_canonical(std::filesystem::path((command_line_args.state_file_path)));
 
-        unsigned int tick_period = command_line_args.tick_period;
-        unsigned int save_state_period = command_line_args.save_state_period;
+        uint64_t tick_period = command_line_args.tick_period;
+        uint64_t save_state_period = command_line_args.save_state_period;
         bool random_spawn = command_line_args.random_spawn;
 
         GameServer game_server(config);

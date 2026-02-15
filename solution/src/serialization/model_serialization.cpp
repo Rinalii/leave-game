@@ -1,10 +1,15 @@
 #include "model_serialization.h"
 
+#include <fstream>
+
+#include "../domain_model/dog.h"
+
+#include "dog_serialization.h"
 
 namespace model {
 void RestoreSession(model::Game& game, const GameSessionReprTmp& session_repr) {
     std::string map_id_string = session_repr.GetMapIdString();
-    const std::vector<PlayerReprTmp>& player_reprs = session_repr.GetPlayerRepr();
+    const std::vector<PlayerRepr>& player_reprs = session_repr.GetPlayerRepr();
     const std::vector<LootObjectRepr>& loot_objerc_reprs = session_repr.GetLootsObjectRepr();
 
     const Map::Id map_id{map_id_string};
@@ -17,11 +22,11 @@ void RestoreSession(model::Game& game, const GameSessionReprTmp& session_repr) {
 
     for(const auto& player_repr : player_reprs) {
         std::string player_name = player_repr.GetPlayerName();
-        int player_id = player_repr.GetPlayerId();
-        int id_counter_player = player_repr.GetIdCounter();
+        uint64_t player_id = player_repr.GetPlayerId();
+        uint64_t id_counter_player = player_repr.GetIdCounter();
 
         const DogRepr& dog_repr = player_repr.GetDogRepr();
-        model::Dog dog = dog_repr.Restore();
+        model::Dog dog = dog_repr.Restore(); 
         std::shared_ptr<model::Dog> dog_ptr = std::make_shared<Dog>(dog);
 
         model::Player player(dog_ptr, player_name, player_id);
@@ -64,7 +69,6 @@ void Save(model::Game& game) {
         oa << game_ses_reprs;
     }
 }
-
 
 void Restore(model::Game& game, std::string filename) {
     std::fstream in_fstream;
